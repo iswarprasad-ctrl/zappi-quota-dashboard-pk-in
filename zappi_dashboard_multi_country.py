@@ -47,8 +47,15 @@ REGION_VALUE_MAP_PK = {
 # =========================================================================
 # 1. CLOUD FILE CONFIGURATION (Direct Cloud Sync)
 # =========================================================================
-FILE_ID = "1cpx1biOPUCu3KxF10DSBEG0_nzUJGg8u"
-GOOGLE_DRIVE_URL = f"https://drive.google.com/uc?id={FILE_ID}&export=download"
+# If India and Pakistan raw data live in TWO SEPARATE files, put each file's
+# Google Drive ID below. If they're still the same single combined file,
+# just set both to the same ID -- everything else works unchanged either way.
+FILE_ID_INDIA = "1cpx1biOPUCu3KxF10DSBEG0_nzUJGg8u"      # TODO: replace with India's file ID if separate
+FILE_ID_PAKISTAN = "1cpx1biOPUCu3KxF10DSBEG0_nzUJGg8u"   # TODO: replace with Pakistan's file ID if separate
+
+
+def drive_url(file_id):
+    return f"https://drive.google.com/uc?id={file_id}&export=download"
 
 
 @st.cache_data(ttl=600)
@@ -78,15 +85,26 @@ def load_excel_from_cloud(url):
         return pd.DataFrame()
 
 
-raw_df = load_excel_from_cloud(GOOGLE_DRIVE_URL)
+def load_country_data(file_id):
+    df = load_excel_from_cloud(drive_url(file_id))
+    if df.empty:
+        return df
+    df.columns = df.columns.astype(str).str.strip()
+    if "Project Name" in df.columns:
+        df = df.dropna(subset=["Project Name"])
+    return df
 
-if raw_df.empty:
-    st.info("💡 Please upload the raw data file back to the Google Drive folder to resume tracking.")
+
+# Load once per country. If FILE_ID_INDIA == FILE_ID_PAKISTAN, @st.cache_data
+# means this is still only ONE network fetch -- no extra cost either way.
+raw_df_by_country = {
+    "India": load_country_data(FILE_ID_INDIA),
+    "Pakistan": load_country_data(FILE_ID_PAKISTAN),
+}
+
+if all(df.empty for df in raw_df_by_country.values()):
+    st.info("💡 Please upload the raw data file(s) back to the Google Drive folder to resume tracking.")
     st.stop()
-
-raw_df.columns = raw_df.columns.astype(str).str.strip()
-if "Project Name" in raw_df.columns:
-    raw_df = raw_df.dropna(subset=["Project Name"])
 
 # =========================================================================
 # 2. QUOTA CONFIG -- built directly from Zappi_-_PK_and_IN_quotas.xlsx
@@ -210,21 +228,11 @@ COUNTRY_CONFIGS = {
 }
 
 # =========================================================================
-# 3. SIDEBAR FILTERS (country pre-selected by tab; language/project shared)
+# 3. FILTERS -- now per-country, since each country can have its own file
 # =========================================================================
-with st.sidebar:
-    st.header("🔍 Filter Parameters")
-    st.caption("💡 Click inside any box and type characters to search instantly.")
-
-    available_languages = list(raw_df["Survey Language"].unique()) if "Survey Language" in raw_df.columns else []
-    selected_langs = st.multiselect("Language", available_languages, default=available_languages)
-
-    filtered_by_lang = raw_df[raw_df["Survey Language"].isin(selected_langs)] if selected_langs else raw_df
-
-    available_projects = list(filtered_by_lang["Project Name"].unique()) if "Project Name" in filtered_by_lang.columns else []
-    selected_projects = st.multiselect("Project Name", available_projects, default=available_projects)
-
-base_df = filtered_by_lang[filtered_by_lang["Project Name"].isin(selected_projects)] if selected_projects else filtered_by_lang
+# (Language/Project filters moved inside render_country_tab below, because
+#  India and Pakistan may now come from two different raw files with two
+#  different sets of languages/projects.)
 
 
 # =========================================================================
@@ -386,11 +394,25 @@ def highlight_collected(val):
 def render_country_tab(country_name):
     st.markdown(f"### {country_name} — Quota Performance Summary")
 
-    if "Survey Country" in base_df.columns:
-        project_df = base_df[base_df["Survey Country"].astype(str).str.strip().str.lower() == country_name.lower()]
-    else:
-        st.error("Raw data has no 'Survey Country' column — cannot filter by country.")
+    raw = raw_df_by_country.get(country_name, pd.DataFrame())
+    if raw.empty:
+        st.warning(f"No raw data loaded for {country_name}. Check its Google Drive file ID at the top of the script.")
         return
+
+    if "Survey Country" in raw.columns:
+        country_df = raw[raw["Survey Country"].astype(str).str.strip().str.lower() == country_name.lower()]
+    else:
+        country_df = raw  # single-country file with no Survey Country column -- assume it's all this country
+
+    # --- per-country filters (own widget keys so India/Pakistan don't collide) ---
+    with st.expander("🔍 Filter Parameters", expanded=False):
+        available_langs = list(country_df["Survey Language"].unique()) if "Survey Language" in country_df.columns else []
+        selected_langs = st.multiselect("Language", available_langs, default=available_langs, key=f"lang_{country_name}")
+        filtered = country_df[country_df["Survey Language"].isin(selected_langs)] if selected_langs else country_df
+
+        available_projects = list(filtered["Project Name"].unique()) if "Project Name" in filtered.columns else []
+        selected_projects = st.multiselect("Project Name", available_projects, default=available_projects, key=f"proj_{country_name}")
+        project_df = filtered[filtered["Project Name"].isin(selected_projects)] if selected_projects else filtered
 
     n_projects = project_df["Project Name"].nunique() if "Project Name" in project_df.columns else 0
     st.markdown(f"📊 **Currently analyzing {len(project_df)} completes across {n_projects} project(s) for {country_name}**")
