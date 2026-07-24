@@ -32,8 +32,7 @@ st.markdown("---")
 
 REGION_COLUMN_PK = "Region"                 # confirmed raw column; used for Pakistan's Bal/Khy/Pak, Pun/Isl, Sindh rows
 REGION_COLUMN_FALLBACK_PK = "State"         # tried if "Region" doesn't contain matching values
-CITY_COLUMN_IN = "State"                    # tried first for India's city-level completes tracking
-CITY_COLUMN_FALLBACK_IN = "Region"          # tried if "State" doesn't contain matching values
+STATE_COLUMN_IN = "State"                   # confirmed: holds real Indian state names (e.g. Karnataka, Telangana)
 ISEC_URL_COLUMN = "Buyer Url"               # confirmed raw column holding query-string params
 ISEC_URL_PARAM_IN = "india_socio_economic_classification"   # CONFIRMED present in raw data
 SEC_URL_PARAM_PK = "pakistan_socio_economic_classification"  # TODO: UNCONFIRMED -- verify against a real Pakistan row
@@ -46,19 +45,6 @@ REGION_VALUE_MAP_PK = {
     "Sindh": ["Sindh"],
 }
 
-# India city completes tracking -- total completes only, no per-supplier targets requested.
-# Includes common spelling variants so "Banglore"/"Bangalore" both match.
-CITY_VALUE_MAP_IN = {
-    "Hyderabad": ["Hyderabad"],
-    "Bangalore": ["Bangalore", "Banglore", "Bengaluru"],
-    "Chennai": ["Chennai"],
-    "Kolkata": ["Kolkata", "Calcutta"],
-    "Mumbai": ["Mumbai", "Bombay"],
-    "Delhi": ["Delhi", "New Delhi"],
-    "Lucknow": ["Lucknow"],
-    "Jaipur": ["Jaipur"],
-}
-
 
 # =========================================================================
 # 1. CLOUD FILE CONFIGURATION (Direct Cloud Sync)
@@ -66,8 +52,8 @@ CITY_VALUE_MAP_IN = {
 # If India and Pakistan raw data live in TWO SEPARATE files, put each file's
 # Google Drive ID below. If they're still the same single combined file,
 # just set both to the same ID -- everything else works unchanged either way.
-FILE_ID_INDIA = "1_vgq3WuKIPzDsvAbeNf5WIx-IYxhxVed"      # TODO: replace with India's file ID if separate
-FILE_ID_PAKISTAN = "1ffklJJdkkuH97794aROfYEGHNrFQg_gN"   # TODO: replace with Pakistan's file ID if separate
+FILE_ID_INDIA = "1cpx1biOPUCu3KxF10DSBEG0_nzUJGg8u"      # TODO: replace with India's file ID if separate
+FILE_ID_PAKISTAN = "1cpx1biOPUCu3KxF10DSBEG0_nzUJGg8u"   # TODO: replace with Pakistan's file ID if separate
 
 
 def drive_url(file_id):
@@ -181,27 +167,6 @@ COUNTRY_CONFIGS = {
             {"label": "ISEC Total", "type": "Total", "target_total": 200,
              "targets": {"GROUP MP (ONLINE)": 40, "MARKETEXCEL (OFFLINE)": 160},
              "sum_of": ["ISEC 1-3", "ISEC 4-5", "ISEC 6-7", "ISEC 8-12"]},
-
-            # City completes tracking -- total completes only, no per-supplier targets requested.
-            {"label": "Hyderabad", "type": "City", "match": "Hyderabad", "target_total": None,
-             "targets": {"GROUP MP (ONLINE)": None, "MARKETEXCEL (OFFLINE)": None}},
-            {"label": "Bangalore", "type": "City", "match": "Bangalore", "target_total": None,
-             "targets": {"GROUP MP (ONLINE)": None, "MARKETEXCEL (OFFLINE)": None}},
-            {"label": "Chennai", "type": "City", "match": "Chennai", "target_total": None,
-             "targets": {"GROUP MP (ONLINE)": None, "MARKETEXCEL (OFFLINE)": None}},
-            {"label": "Kolkata", "type": "City", "match": "Kolkata", "target_total": None,
-             "targets": {"GROUP MP (ONLINE)": None, "MARKETEXCEL (OFFLINE)": None}},
-            {"label": "Mumbai", "type": "City", "match": "Mumbai", "target_total": None,
-             "targets": {"GROUP MP (ONLINE)": None, "MARKETEXCEL (OFFLINE)": None}},
-            {"label": "Delhi", "type": "City", "match": "Delhi", "target_total": None,
-             "targets": {"GROUP MP (ONLINE)": None, "MARKETEXCEL (OFFLINE)": None}},
-            {"label": "Lucknow", "type": "City", "match": "Lucknow", "target_total": None,
-             "targets": {"GROUP MP (ONLINE)": None, "MARKETEXCEL (OFFLINE)": None}},
-            {"label": "Jaipur", "type": "City", "match": "Jaipur", "target_total": None,
-             "targets": {"GROUP MP (ONLINE)": None, "MARKETEXCEL (OFFLINE)": None}},
-            {"label": "City Total", "type": "Total", "target_total": None,
-             "targets": {"GROUP MP (ONLINE)": None, "MARKETEXCEL (OFFLINE)": None},
-             "sum_of": ["Hyderabad", "Bangalore", "Chennai", "Kolkata", "Mumbai", "Delhi", "Lucknow", "Jaipur"]},
         ],
     },
     "Pakistan": {
@@ -303,17 +268,6 @@ def filter_for_row(df, row):
         if region_col is None:
             return None
         return df[df[region_col].astype(str).str.strip().str.lower().isin(valid_values)]
-
-    if row["type"] == "City":
-        valid_values = [v.strip().lower() for v in CITY_VALUE_MAP_IN.get(row["match"], [row["match"]])]
-        city_col = None
-        if CITY_COLUMN_IN in df.columns and df[CITY_COLUMN_IN].astype(str).str.strip().str.lower().isin(valid_values).any():
-            city_col = CITY_COLUMN_IN
-        elif CITY_COLUMN_FALLBACK_IN in df.columns:
-            city_col = CITY_COLUMN_FALLBACK_IN
-        if city_col is None:
-            return None
-        return df[df[city_col].astype(str).str.strip().str.lower().isin(valid_values)]
 
     if row["type"] == "SEC":
         # SEC band is embedded as a URL query param (no dedicated raw column) -- see SEC_URL_PARAM_PK note at top.
@@ -475,6 +429,60 @@ def render_country_tab(country_name):
     collected_cols = [(col, "Collected") for col in config["supplier_columns"]]
     styled = report_df.style.map(highlight_collected, subset=collected_cols)
     st.dataframe(styled, use_container_width=True, height=750)
+
+    if country_name == "India":
+        render_region_quotas_by_state(project_df, selected_projects)
+
+
+def render_region_quotas_by_state(project_df, selected_projects):
+    """India-only: state-level 'Region Quotas' section. Targets are set per project
+    (like the MP platform's UT-States quota screen), since groupings/targets vary
+    project to project rather than following a fixed universal structure."""
+    st.markdown("#### Region Quotas (by State)")
+
+    if len(selected_projects) != 1:
+        st.info("Select exactly one project in the filter above to set/view state-level region quotas.")
+        return
+
+    project_key = selected_projects[0]
+
+    if STATE_COLUMN_IN not in project_df.columns:
+        st.warning(f"Raw data has no '{STATE_COLUMN_IN}' column — cannot break out region quotas by state.")
+        return
+
+    unique_states = sorted(
+        s for s in project_df[STATE_COLUMN_IN].astype(str).str.strip().unique() if s and s.lower() != "nan"
+    )
+    if not unique_states:
+        st.info("No State values found for this project's completes yet.")
+        return
+
+    st.caption(
+        "Targets below are set per project (mirroring the MP platform's UT-States quota screen). "
+        "Defaults to 0 — set the real target for whichever state(s) this project is actually quota-ing "
+        "(e.g. set one state to 100% of the project total, leave the rest at 0)."
+    )
+
+    rows = []
+    total_target = 0
+    total_collected = 0
+    for state in unique_states:
+        collected = int((project_df[STATE_COLUMN_IN].astype(str).str.strip() == state).sum())
+        key = f"state_target__{project_key}__{state}"
+        target = st.number_input(
+            f"{state} — target", min_value=0, step=1, value=st.session_state.get(key, 0), key=key
+        )
+        pending = target - collected
+        rows.append([state, target, collected, pending])
+        total_target += target
+        total_collected += collected
+
+    rows.append(["Region Total", total_target, total_collected, total_target - total_collected])
+    state_df = pd.DataFrame(rows, columns=["State", "Target", "Collected", "Pending"]).set_index("State")
+
+    styled_state = state_df.style.map(lambda v: "background-color: #FFFF99; color: black;", subset=["Collected"])
+    st.dataframe(styled_state, use_container_width=True)
+    st.caption("Note: these targets are set per browser session (not saved permanently) — re-enter if the app restarts.")
 
 
 # =========================================================================
