@@ -50,8 +50,8 @@ REGION_VALUE_MAP_PK = {
 # If India and Pakistan raw data live in TWO SEPARATE files, put each file's
 # Google Drive ID below. If they're still the same single combined file,
 # just set both to the same ID -- everything else works unchanged either way.
-FILE_ID_INDIA = "1fFcmQFcKUYGtr5_IpMQ7V6cal0k15vzd"      # TODO: replace with India's file ID if separate
-FILE_ID_PAKISTAN = "1fFcmQFcKUYGtr5_IpMQ7V6cal0k15vzd"   # TODO: replace with Pakistan's file ID if separate
+FILE_ID_INDIA = "1_vgq3WuKIPzDsvAbeNf5WIx-IYxhxVed"      # TODO: replace with India's file ID if separate
+FILE_ID_PAKISTAN = "1ffklJJdkkuH97794aROfYEGHNrFQg_gN"   # TODO: replace with Pakistan's file ID if separate
 
 
 def drive_url(file_id):
