@@ -33,8 +33,9 @@ st.markdown("---")
 REGION_COLUMN_PK = "Region"                 # confirmed raw column; used for Pakistan's Bal/Khy/Pak, Pun/Isl, Sindh rows
 REGION_COLUMN_FALLBACK_PK = "State"         # tried if "Region" doesn't contain matching values
 STATE_COLUMN_IN = "State"                   # confirmed: holds real Indian state names (e.g. Karnataka, Telangana)
-ISEC_URL_COLUMN = "Buyer Url"               # confirmed raw column holding query-string params
-ISEC_URL_PARAM_IN = "india_socio_economic_classification"   # CONFIRMED present in raw data
+ISEC_COLUMN_IN = "ISEC - Segmentation Parent Edition"  # CONFIRMED: dedicated raw column (use this first)
+ISEC_URL_COLUMN = "Buyer Url"               # fallback only, if ISEC_COLUMN_IN isn't present in a given export
+ISEC_URL_PARAM_IN = "india_socio_economic_classification"   # fallback param name
 SEC_URL_PARAM_PK = "pakistan_socio_economic_classification"  # TODO: UNCONFIRMED -- verify against a real Pakistan row
 
 # Map each quota-sheet region label -> list of possible raw-data values that should count toward it.
@@ -52,8 +53,8 @@ REGION_VALUE_MAP_PK = {
 # If India and Pakistan raw data live in TWO SEPARATE files, put each file's
 # Google Drive ID below. If they're still the same single combined file,
 # just set both to the same ID -- everything else works unchanged either way.
-FILE_ID_INDIA = "1_vgq3WuKIPzDsvAbeNf5WIx-IYxhxVed"      # TODO: replace with India's file ID if separate
-FILE_ID_PAKISTAN = "1ffklJJdkkuH97794aROfYEGHNrFQg_gN"   # TODO: replace with Pakistan's file ID if separate
+FILE_ID_INDIA = "1cpx1biOPUCu3KxF10DSBEG0_nzUJGg8u"      # TODO: replace with India's file ID if separate
+FILE_ID_PAKISTAN = "1cpx1biOPUCu3KxF10DSBEG0_nzUJGg8u"   # TODO: replace with Pakistan's file ID if separate
 
 
 def drive_url(file_id):
@@ -278,14 +279,22 @@ def filter_for_row(df, row):
         return temp[temp["_SEC_VALUE"].astype(str).str.strip().str.upper() == row["match"].upper()]
 
     if row["type"] == "ISEC":
-        # ISEC band is embedded as a URL query param inside Buyer Url (confirmed).
-        if ISEC_URL_COLUMN not in df.columns:
-            return None
         low, high = map(int, row["match"].split("-"))
         temp = df.copy()
-        temp["_ISEC_VALUE"] = extract_url_param(temp[ISEC_URL_COLUMN], ISEC_URL_PARAM_IN)
-        numeric = pd.to_numeric(temp["_ISEC_VALUE"], errors="coerce")
-        return temp[(numeric >= low) & (numeric <= high)]
+
+        if ISEC_COLUMN_IN in temp.columns:
+            # Confirmed dedicated column -- extract the numeric band value (matches original dashboard's approach)
+            isec_text = temp[ISEC_COLUMN_IN].astype(str).str.strip()
+            numeric = pd.to_numeric(isec_text.str.extract(r"(\d+)", expand=False), errors="coerce")
+            return temp[(numeric >= low) & (numeric <= high)]
+
+        if ISEC_URL_COLUMN in temp.columns:
+            # Fallback only if the dedicated column isn't present in this export
+            temp["_ISEC_VALUE"] = extract_url_param(temp[ISEC_URL_COLUMN], ISEC_URL_PARAM_IN)
+            numeric = pd.to_numeric(temp["_ISEC_VALUE"], errors="coerce")
+            return temp[(numeric >= low) & (numeric <= high)]
+
+        return None
 
     if row["type"] == "Age-Gender":
         if "Gender" not in df.columns or "Age" not in df.columns:
