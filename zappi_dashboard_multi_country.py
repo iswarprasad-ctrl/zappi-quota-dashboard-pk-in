@@ -52,8 +52,8 @@ REGION_VALUE_MAP_PK = {
 # If India and Pakistan raw data live in TWO SEPARATE files, put each file's
 # Google Drive ID below. If they're still the same single combined file,
 # just set both to the same ID -- everything else works unchanged either way.
-FILE_ID_INDIA = "1_vgq3WuKIPzDsvAbeNf5WIx-IYxhxVed"      # TODO: replace with India's file ID if separate
-FILE_ID_PAKISTAN = "1ffklJJdkkuH97794aROfYEGHNrFQg_gN"   # TODO: replace with Pakistan's file ID if separate
+FILE_ID_INDIA = "1cpx1biOPUCu3KxF10DSBEG0_nzUJGg8u"      # TODO: replace with India's file ID if separate
+FILE_ID_PAKISTAN = "1cpx1biOPUCu3KxF10DSBEG0_nzUJGg8u"   # TODO: replace with Pakistan's file ID if separate
 
 
 def drive_url(file_id):
@@ -451,7 +451,7 @@ def render_region_quotas_by_state(project_df, selected_projects):
         return
 
     unique_states = sorted(
-        s for s in project_df[STATE_COLUMN_IN].astype(str).str.strip().unique() if s and s.lower() != "nan"
+        s for s in project_df[STATE_COLUMN_IN].dropna().astype(str).str.strip().unique() if s
     )
     if not unique_states:
         st.info("No State values found for this project's completes yet.")
