@@ -36,7 +36,11 @@ STATE_COLUMN_IN = "State"                   # confirmed: holds real Indian state
 ISEC_COLUMN_IN = "ISEC - Segmentation Parent Edition"  # CONFIRMED: dedicated raw column (use this first)
 ISEC_URL_COLUMN = "Buyer Url"               # fallback only, if ISEC_COLUMN_IN isn't present in a given export
 ISEC_URL_PARAM_IN = "india_socio_economic_classification"   # fallback param name
-SEC_URL_PARAM_PK = "pakistan_socio_economic_classification"  # TODO: UNCONFIRMED -- verify against a real Pakistan row
+SEC_URL_PARAM_PK = "pakistan_socio_economic_classification"  # fallback only, if no dedicated column is found
+# CONFIRMED: SEC lives in a dedicated "...Segmentation Parent Edition" column (same family as India's ISEC
+# column), holding letter values (A/B/C/D) rather than numbers. Exact prefix wasn't confirmed, so we try
+# both likely names in order.
+SEC_COLUMN_PK_CANDIDATES = ["SEC - Segmentation Parent Edition", "ISEC - Segmentation Parent Edition"]
 
 # Map each quota-sheet region label -> list of possible raw-data values that should count toward it.
 # These are reasonable province-name guesses; confirm against actual Pakistan rows once available.
@@ -53,8 +57,8 @@ REGION_VALUE_MAP_PK = {
 # If India and Pakistan raw data live in TWO SEPARATE files, put each file's
 # Google Drive ID below. If they're still the same single combined file,
 # just set both to the same ID -- everything else works unchanged either way.
-FILE_ID_INDIA = "1_vgq3WuKIPzDsvAbeNf5WIx-IYxhxVed"      # TODO: replace with India's file ID if separate
-FILE_ID_PAKISTAN = "1ffklJJdkkuH97794aROfYEGHNrFQg_gN"   # TODO: replace with Pakistan's file ID if separate
+FILE_ID_INDIA = "1cpx1biOPUCu3KxF10DSBEG0_nzUJGg8u"      # TODO: replace with India's file ID if separate
+FILE_ID_PAKISTAN = "1cpx1biOPUCu3KxF10DSBEG0_nzUJGg8u"   # TODO: replace with Pakistan's file ID if separate
 
 
 def drive_url(file_id):
@@ -173,8 +177,8 @@ COUNTRY_CONFIGS = {
     "Pakistan": {
         "supplier_columns": ["GROUPMP", "CPX", "MARKETEXCEL"],
         "supplier_match": {
+            "CPX": {"column": "Supplier Name", "contains": "CPX"},   # checked FIRST -- takes priority
             "GROUPMP": ["Group MP", "GroupMP"],
-            "CPX": ["CPX"],
             "MARKETEXCEL": None,  # remainder
         },
         "rows": [
@@ -271,12 +275,22 @@ def filter_for_row(df, row):
         return df[df[region_col].astype(str).str.strip().str.lower().isin(valid_values)]
 
     if row["type"] == "SEC":
-        # SEC band is embedded as a URL query param (no dedicated raw column) -- see SEC_URL_PARAM_PK note at top.
-        if ISEC_URL_COLUMN not in df.columns:
-            return None
         temp = df.copy()
-        temp["_SEC_VALUE"] = extract_url_param(temp[ISEC_URL_COLUMN], SEC_URL_PARAM_PK)
-        return temp[temp["_SEC_VALUE"].astype(str).str.strip().str.upper() == row["match"].upper()]
+        letter = row["match"].strip().upper()
+
+        sec_col = next((c for c in SEC_COLUMN_PK_CANDIDATES if c in temp.columns), None)
+        if sec_col is not None:
+            sec_text = temp[sec_col].astype(str).str.strip().str.upper()
+            # allow either a bare letter ("A") or a letter embedded in more text ("A - description")
+            extracted = sec_text.str.extract(r"([A-D])", expand=False)
+            return temp[extracted == letter]
+
+        if ISEC_URL_COLUMN in temp.columns:
+            # Fallback only if no dedicated column was found in this export
+            temp["_SEC_VALUE"] = extract_url_param(temp[ISEC_URL_COLUMN], SEC_URL_PARAM_PK)
+            return temp[temp["_SEC_VALUE"].astype(str).str.strip().str.upper() == letter]
+
+        return None
 
     if row["type"] == "ISEC":
         low, high = map(int, row["match"].split("-"))
@@ -309,25 +323,45 @@ def filter_for_row(df, row):
 
 
 def supplier_counts(df, supplier_match):
-    """Split a dataframe slice into counts per supplier column, using the match rules for that country."""
+    """Split a dataframe slice into counts per supplier column, using the match rules for that country.
+
+    Rules are processed in dict order, and each rule only claims rows not already claimed by an
+    earlier rule -- so higher-priority rules (e.g. CPX, matched by Supplier Name) should be listed
+    first, ahead of lower-priority Supplier-Group-based rules, to avoid double-counting a row that
+    would otherwise match both.
+
+    A rule value can be:
+      - a list of strings  -> exact match against the "Supplier Group" column
+      - a dict {"column": <col>, "contains": <substr>}  -> substring match (case-insensitive) against
+        that column, e.g. {"column": "Supplier Name", "contains": "CPX"}
+      - None -> remainder (everything not claimed by any other rule)
+    """
     if df is None:
         return {col: 0 for col in supplier_match}
 
-    counts = {}
-    if "Supplier Group" not in df.columns:
-        # Can't split -> put everything in the first defined column
-        first_col = list(supplier_match.keys())[0]
-        counts = {col: 0 for col in supplier_match}
-        counts[first_col] = len(df)
-        return counts
-
+    counts = {col: 0 for col in supplier_match}
     remainder_cols = []
     assigned_mask = pd.Series(False, index=df.index)
-    for col, matches in supplier_match.items():
-        if matches is None:
+
+    for col, rule in supplier_match.items():
+        if rule is None:
             remainder_cols.append(col)
             continue
-        mask = df["Supplier Group"].astype(str).str.strip().str.lower().isin([m.lower() for m in matches])
+
+        available_mask = ~assigned_mask
+
+        if isinstance(rule, dict):
+            col_name = rule["column"]
+            if col_name not in df.columns:
+                continue
+            match_mask = df[col_name].astype(str).str.contains(rule["contains"], case=False, na=False)
+        else:
+            if "Supplier Group" not in df.columns:
+                continue
+            matches_lower = [m.lower() for m in rule]
+            match_mask = df["Supplier Group"].astype(str).str.strip().str.lower().isin(matches_lower)
+
+        mask = match_mask & available_mask
         counts[col] = int(mask.sum())
         assigned_mask = assigned_mask | mask
 
