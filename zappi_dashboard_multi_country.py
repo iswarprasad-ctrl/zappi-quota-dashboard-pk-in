@@ -40,7 +40,7 @@ SEC_URL_PARAM_PK = "pakistan_socio_economic_classification"  # fallback only, if
 # CONFIRMED: SEC lives in a dedicated "...Segmentation Parent Edition" column (same family as India's ISEC
 # column), holding letter values (A/B/C/D) rather than numbers. Exact prefix wasn't confirmed, so we try
 # both likely names in order.
-SEC_COLUMN_PK_CANDIDATES = ["SEC - Segmentation Parent Edition", "ISEC - Segmentation Parent Edition"]
+SEC_COLUMN_PK_CANDIDATES = ["Segmentation Parent Edition", "SEC - Segmentation Parent Edition", "ISEC - Segmentation Parent Edition"]
 
 # Map each quota-sheet region label -> list of possible raw-data values that should count toward it.
 # These are reasonable province-name guesses; confirm against actual Pakistan rows once available.
@@ -57,8 +57,8 @@ REGION_VALUE_MAP_PK = {
 # If India and Pakistan raw data live in TWO SEPARATE files, put each file's
 # Google Drive ID below. If they're still the same single combined file,
 # just set both to the same ID -- everything else works unchanged either way.
-FILE_ID_INDIA = "1_vgq3WuKIPzDsvAbeNf5WIx-IYxhxVed"      # TODO: replace with India's file ID if separate
-FILE_ID_PAKISTAN = "1ffklJJdkkuH97794aROfYEGHNrFQg_gN"   # TODO: replace with Pakistan's file ID if separate
+FILE_ID_INDIA = "1cpx1biOPUCu3KxF10DSBEG0_nzUJGg8u"      # TODO: replace with India's file ID if separate
+FILE_ID_PAKISTAN = "1cpx1biOPUCu3KxF10DSBEG0_nzUJGg8u"   # TODO: replace with Pakistan's file ID if separate
 
 
 def drive_url(file_id):
