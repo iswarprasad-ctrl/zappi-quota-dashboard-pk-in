@@ -57,8 +57,8 @@ REGION_VALUE_MAP_PK = {
 # If India and Pakistan raw data live in TWO SEPARATE files, put each file's
 # Google Drive ID below. If they're still the same single combined file,
 # just set both to the same ID -- everything else works unchanged either way.
-FILE_ID_INDIA = "1_vgq3WuKIPzDsvAbeNf5WIx-IYxhxVed"      # TODO: replace with India's file ID if separate
-FILE_ID_PAKISTAN = "1ffklJJdkkuH97794aROfYEGHNrFQg_gN"   # TODO: replace with Pakistan's file ID if separate
+FILE_ID_INDIA = "1cpx1biOPUCu3KxF10DSBEG0_nzUJGg8u"      # TODO: replace with India's file ID if separate
+FILE_ID_PAKISTAN = "1cpx1biOPUCu3KxF10DSBEG0_nzUJGg8u"   # TODO: replace with Pakistan's file ID if separate
 
 
 def drive_url(file_id):
@@ -217,7 +217,7 @@ COUNTRY_CONFIGS = {
 
             {"label": "Male 16-24", "type": "Age-Gender", "match": "Male:16-24", "target_total": 32,
              "targets": {"GROUPMP": 5, "CPX": 6, "MARKETEXCEL": 21}},
-            {"label": "Female 16-25", "type": "Age-Gender", "match": "Female:16-25", "target_total": 32,
+            {"label": "Female 16-24", "type": "Age-Gender", "match": "Female:16-24", "target_total": 32,
              "targets": {"GROUPMP": 5, "CPX": 6, "MARKETEXCEL": 21}},
             {"label": "Male 25-44", "type": "Age-Gender", "match": "Male:25-44", "target_total": 41,
              "targets": {"GROUPMP": 6, "CPX": 8, "MARKETEXCEL": 27}},
@@ -229,7 +229,7 @@ COUNTRY_CONFIGS = {
              "targets": {"GROUPMP": 4, "CPX": 6, "MARKETEXCEL": 18}},
             {"label": "Age-Gender Total", "type": "Total", "target_total": 200,
              "targets": {"GROUPMP": 30, "CPX": 40, "MARKETEXCEL": 128},
-             "sum_of": ["Male 16-24", "Female 16-25", "Male 25-44", "Female 25-44", "Male 45+", "Female 45+"]},
+             "sum_of": ["Male 16-24", "Female 16-24", "Male 25-44", "Female 25-44", "Male 45+", "Female 45+"]},
         ],
     },
 }
