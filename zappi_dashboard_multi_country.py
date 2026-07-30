@@ -57,8 +57,8 @@ REGION_VALUE_MAP_PK = {
 # If India and Pakistan raw data live in TWO SEPARATE files, put each file's
 # Google Drive ID below. If they're still the same single combined file,
 # just set both to the same ID -- everything else works unchanged either way.
-FILE_ID_INDIA = "1_vgq3WuKIPzDsvAbeNf5WIx-IYxhxVed"      # TODO: replace with India's file ID if separate
-FILE_ID_PAKISTAN = "1ffklJJdkkuH97794aROfYEGHNrFQg_gN"   # TODO: replace with Pakistan's file ID if separate
+FILE_ID_INDIA = "1cpx1biOPUCu3KxF10DSBEG0_nzUJGg8u"      # TODO: replace with India's file ID if separate
+FILE_ID_PAKISTAN = "1cpx1biOPUCu3KxF10DSBEG0_nzUJGg8u"   # TODO: replace with Pakistan's file ID if separate
 
 
 def drive_url(file_id):
@@ -409,7 +409,7 @@ def build_report(project_df, config):
             collected_by_label[row["label"]] = summed
 
     # assemble final dataframe
-    col_tuples = [("TOTAL", "Target"), ("TOTAL", "Collected")]
+    col_tuples = [("TOTAL", "Target"), ("TOTAL", "Collected"), ("TOTAL", "Pending")]
     for col in supplier_cols:
         col_tuples.append((col, "Target"))
         col_tuples.append((col, "Collected"))
@@ -420,7 +420,13 @@ def build_report(project_df, config):
     for row in rows:
         target_total = row.get("target_total")
         collected = collected_by_label[row["label"]]
-        line = [target_total, collected["TOTAL"]]
+        total_collected = collected["TOTAL"]
+        total_pending = (target_total - total_collected) if target_total is not None else None
+        line = [
+            target_total if target_total is not None else "–",
+            total_collected,
+            total_pending if total_pending is not None else "–",
+        ]
         for col in supplier_cols:
             tgt = row["targets"].get(col)
             got = collected.get(col, 0)
